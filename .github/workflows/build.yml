@@ -2,7 +2,8 @@ name: build-and-deploy
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # ~každých 30 min
+    - cron: "0 2 * * *"   # jednou denně, 02:00 UTC = 4:00 (léto) / 3:00 (zima) Praha
+                          # (noční notifikační e-mail ČS to stihne)
   workflow_dispatch:
   push:
     branches: [main]
