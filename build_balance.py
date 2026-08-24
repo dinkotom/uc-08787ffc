@@ -49,7 +49,18 @@ def get_balances(accounts):
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER, timeout=60)
         mail.login(user, pw)
-        mail.select("inbox", readonly=True)
+        # Prohledáváme „Všechny zprávy" místo inboxu – notifikace mohou být
+        # archivované. Složku najdeme podle IMAP atributu \All (název je
+        # lokalizovaný, např. „Všechny zprávy"); fallback na inbox.
+        all_mail = None
+        status, boxes = mail.list()
+        if status == "OK":
+            for box in boxes:
+                line = box.decode()
+                if "\\All" in line:
+                    all_mail = line.rsplit(' "/" ', 1)[-1].strip()
+                    break
+        mail.select(all_mail if all_mail else "inbox", readonly=True)
         since = (date.today() - timedelta(days=14)).strftime("%d-%b-%Y")
         status, messages = mail.search(None, f'(FROM "{SENDER_EMAIL}" SINCE "{since}")')
         if status == "OK" and messages[0]:
@@ -75,9 +86,12 @@ def get_balances(accounts):
                 for name, acc in accounts.items():
                     if results[name] is not None:
                         continue
-                    padded = str(acc).zfill(16)
-                    if padded in body:
-                        idx = body.find(padded)
+                    # ČS dřív čísla účtů doplňovala nulami na 16 míst, od
+                    # ~08/2026 posílá čisté číslo – podporujeme obě varianty.
+                    acc_s = str(acc)
+                    found = next((c for c in (acc_s.zfill(16), acc_s) if c in body), None)
+                    if found:
+                        idx = body.find(found)
                         m = re.search(r"is\s*(?:<[^>]+>\s*)*([\d\s\xa0&nbsp;]+),(\d{2})\s*CZK",
                                       body[idx:idx + 500], re.IGNORECASE | re.DOTALL)
                         if m:
